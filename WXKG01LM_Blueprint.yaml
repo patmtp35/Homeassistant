@@ -1,0 +1,86 @@
+blueprint:
+  name: Xiaomi MiJia wireless switch (WXKG01LM) Z2MQTT
+  description: single, double, triple, quadruple, hold, release and many commands. See https://www.zigbee2mqtt.io/devices/WXKG01LM.html
+  domain: automation
+  input:
+    remote:
+      name: Remote
+      description: The action entity of your Styrbar remote
+      selector:
+        entity:
+          domain: sensor
+    onepress:
+      name: one press
+      description: Action to run on one press
+      default: []
+      selector:
+        action: {}
+    twopress:
+      name: two presses
+      description: Action to run on two presses
+      default: []
+      selector:
+        action: {}
+    threepress:
+      name: three presses
+      description: Action to run on three presses
+      default: []
+      selector:
+        action: {}
+    fourpress:
+      name: four presses
+      description: Action to run on four presses
+      default: []
+      selector:
+        action: {}
+    hold:
+      name: hold
+      description: Action to run on hold
+      default: []
+      selector:
+        action: {}
+    release:
+      name: release
+      description: Action to run on release
+      default: []
+      selector:
+        action: {}
+    many:
+      name: many presses
+      description: Action to run on many presses
+      default: []
+      selector:
+        action: {}
+  source_url: https://gitlab.com/Underknowledge/graveyard/-/raw/main/HomeAssistant/blueprints/z2m/Xiaomi-WXKG01LM-mijia-round-wireless-switch.yaml?ref_type=heads
+trigger:
+  - platform: state
+    entity_id: !input 'remote'
+    attribute: action
+condition: []
+action:
+  - variables:
+      command: '{{ trigger.to_state.state }}'
+  - choose:      
+      - conditions:
+          - '{{ command == ''single'' }}'
+        sequence: !input 'onepress'
+      - conditions:
+          - '{{ command == ''double'' }}'
+        sequence: !input 'twopress'    
+      - conditions:
+          - '{{ command == ''triple'' }}'
+        sequence: !input 'threepress'
+      - conditions:
+          - '{{ command == ''quadruple'' }}'
+        sequence: !input 'fourpress'
+      - conditions:
+          - '{{ command == ''hold'' }}'
+        sequence: !input 'hold'
+      - conditions:
+          - '{{ command == ''release'' }}'
+        sequence: !input 'release'
+      - conditions:
+          - '{{ command == ''many'' }}'
+        sequence: !input 'many'
+mode: restart
+max_exceeded: silent
