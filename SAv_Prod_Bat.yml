@@ -1,0 +1,135 @@
+- id: '1727441738573'
+  alias: Démarrage / Arret Prod Batteries PV V3.0
+  description: Action à faire lorsque l on démarre ou arrete la production sur batteries
+  triggers:
+  - type: changed_states
+    device_id: 01ee4b929a576e5036ad97e68f946570
+    entity_id: 4efa154587020dea074dd95189c4e7dc
+    domain: switch
+    trigger: device
+  actions:
+  - if:
+    - condition: device
+      type: is_on
+      device_id: 01ee4b929a576e5036ad97e68f946570
+      entity_id: 4efa154587020dea074dd95189c4e7dc
+      domain: switch
+    then:
+      - delay:
+          seconds: 17
+      - action: script.msunpv_routage_on_off
+      - delay:
+          seconds: 5
+      - action: switch.turn_off
+        target:
+          entity_id:
+            - switch.prise_r48_charger_socket_1
+            - switch.dps5020_charger_switch
+    else:
+      - delay:
+          seconds: 10
+      - action: script.msunpv_routage_on_off
+  mode: single
+
+- id: '1756932125564'
+  alias: Batteries PV Fin de production V3
+  description: Si batteries < 22 alors on coupe pr protection
+  triggers:
+  - entity_id: sensor.bms1_24v150ah_adc
+    below: 22
+    trigger: numeric_state
+  - entity_id: sensor.smartsolar1_esp_battery_voltage
+    below: 22
+    trigger: numeric_state
+  actions:
+  - delay:
+      seconds: 2
+  - if:
+    - condition: or
+      conditions:
+      - condition: numeric_state
+        entity_id: sensor.bms1_24v150ah_adc
+        below: 22
+      - condition: numeric_state
+        entity_id: sensor.smartsolar1_esp_battery_voltage
+        below: 22
+    then:
+      - action: switch.turn_off
+        target:
+          device_id: 01ee4b929a576e5036ad97e68f946570
+  mode: single
+
+- id: '1765138500778'
+  alias: Allumer Prod Batteries à 6h et éteindre Prise Bat selon la puissance PV V2
+  triggers:
+  - at: 06:01:00
+    trigger: time
+  conditions:
+  - condition: numeric_state
+    entity_id: sensor.smartshunt_best_battery_voltage
+    above: 23.5
+  actions:
+  - action: switch.turn_on
+    target:
+      entity_id: switch.prise_prod_batteries
+  - wait_for_trigger:
+    - trigger: template
+      value_template: "{{ states('sensor.msunpv_powpv') | float(0) < -230 }}"
+    continue_on_timeout: false
+  - action: switch.turn_off
+    target:
+      entity_id: switch.prise_prod_batteries
+  - action: switch.turn_on
+    target:
+      entity_id: switch.dps5020_charger_switch
+  mode: restart
+  
+  alias: Activer Prod batterie PV 45 min avant coucher du soleil
+description: >-
+  Active le switch batterie 45 minutes avant le coucher du soleil si le
+  lendemain n'est pas une journée tempo rouge et si la batterie est supérieure à
+  26.1 volts.
+triggers:
+  - event: sunset
+    offset: "-00:45:00"
+    trigger: sun
+conditions:
+  - condition: not
+    conditions:
+      - condition: state
+        entity_id: sensor.rte_tempo_prochaine_couleur
+        state: rouge
+  - condition: numeric_state
+    entity_id: sensor.smartsolar1_esp_battery_voltage
+    above: 26.1
+  - condition: state
+    entity_id: switch.prise_prod_batteries
+    state: "off"
+actions:
+  - action: switch.turn_on
+    target:
+      entity_id: switch.prise_prod_batteries
+  - action: switch.turn_off
+    target:
+      entity_id:
+        - switch.dps5020_charger_switch
+  - action: switch.turn_off
+    target:
+      device_id: eada7b83c74c0cb063dcbfe7ca151794
+mode: single
+
+alias: Mémoriser autonomie batterie
+description: ""
+triggers:
+  - entity_id: sensor.batterie_lifepo4_autonomie_h
+    trigger: state
+conditions:
+  - condition: numeric_state
+    entity_id: sensor.prise_prod_batteries_power
+    above: 0
+actions:
+  - target:
+      entity_id: input_number.batterie_autonomie_memorisee
+    data:
+      value: "{{ states('sensor.batterie_lifepo4_autonomie_simple_h') }}"
+    action: input_number.set_value
