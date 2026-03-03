@@ -1,0 +1,138 @@
+
+# =============================
+# AUTOMATISATIONS ANCIENS CHARGEURS (ARCHIVE)
+# Installation pré-MultiPlus-II
+# =============================
+
+- alias: Démarrage chargeur batteries sur surplus le matin des -50w V2
+  description: Allume le chargeur si surplus > -50W le matin après le lever du soleil (msunpv ou linky)
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.msunpv_powreso
+      below: -50
+    - platform: numeric_state
+      entity_id: sensor.cptlinkyshe_power
+      below: -50
+  condition:
+    - condition: sun
+      after: sunrise
+    - condition: time
+      before: "11:00:00"
+    - condition: state
+      entity_id: switch.prise_prod_batteries
+      state: "off"
+  action:
+    - service: switch.turn_on
+      target:
+        entity_id: switch.prise_r48_charger_socket_1
+    - delay: "00:00:02"
+    - service: switch.turn_on
+      target:
+        entity_id: switch.dps5020_charger_switch
+
+- alias: Chargeur Classique Noir - Allumage Auto
+  description: Allume le chargeur si conditions PV + bulk
+  trigger:
+    - platform: template
+      value_template: >
+        {{ states('sensor.prodsloaireshe_power') | float > 900
+        and states('sensor.smartshunt_best_battery_voltage') | float < 28.4
+        and states('sensor.cptlinkyshe_power') | float < 0
+        and states('sensor.smartsolar1_esp_charging_mode') | lower == 'bulk' }}
+      for: "00:00:15"
+  condition:
+    - condition: state
+      entity_id: switch.prise_prod_batteries
+      state: "off"
+    - condition: state
+      entity_id: switch.ballon_thermodynamique
+      state: "off"
+  action:
+    - service: switch.turn_on
+      target:
+        entity_id: switch.prisechargeurbat_zig
+
+- alias: Chargeur Classique Noir - Extinction Auto
+  description: Extinction automatique du chargeur si conditions défavorables
+  trigger:
+    - platform: template
+      value_template: >
+        {{ states('sensor.cptlinkyshe_power') | float > 50
+        or states('sensor.smartsolar1_esp_battery_voltage') | float > 29.3
+        or states('sensor.smartsolar1_esp_charging_mode') | lower == 'absorption' }}
+      for: "00:00:15"
+  condition:
+    - condition: state
+      entity_id: switch.prisechargeurbat_zig
+      state: "on"
+  action:
+    - delay: "00:00:20"
+    - service: switch.turn_off
+      target:
+        entity_id: switch.prisechargeurbat_zig
+
+- alias: Couper prises chargeurs si faible conso en absorption V2
+  description: Coupe les prises de charge si conso < 10W en absorption
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.prisechargeurbat_zig_power
+      below: 10
+      for: "00:01:00"
+  condition:
+    - condition: or
+      conditions:
+        - condition: state
+          entity_id: sensor.smartsolar1_esp_charging_mode
+          state: "Absorption"
+        - condition: state
+          entity_id: sensor.victron_unified_esp_mppt10030_vd_charging_mode
+          state: "Absorption"
+  action:
+    - service: switch.turn_off
+      target:
+        entity_id:
+          - switch.prisechargeurbat_zig
+          - switch.prise_r48_charger_socket_1
+          - switch.dps5020_charger_switch
+
+- alias: Batteries PV Protection ko Chargeur > 29.5
+  description: Protection surtension batteries
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.bms1_24v150ah_adc
+      above: 29.25
+  action:
+    - service: switch.turn_off
+      target:
+        entity_id: switch.dps5020_charger_switch
+
+- alias: Chargeur – Alerte surchauffe R48
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.charger_hybrid_r48_temperature
+      above: 60
+      for: "00:00:30"
+  action:
+    - service: notify.mobile_app_m2101k6g
+      data:
+        title: "🔥 Surchauffe Emerson R48"
+
+- alias: Chargeur – Alerte surintensité DPS R48
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.charger_hybrid_dps_output_current
+      above: 22
+  action:
+    - service: notify.mobile_app_m2101k6g
+      data:
+        title: "⚡ Surintensité DPS"
+
+- alias: Chargeur – Surtension batterie R48
+  trigger:
+    - platform: state
+      entity_id: sensor.charger_hybrid_phase_de_charge_batterie
+      to: "⚠️ Coupure surtension batterie !"
+  action:
+    - service: notify.mobile_app_m2101k6g
+      data:
+        title: "⚠️ Surtension Batterie"
